@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统接入 - 机器人控制台</title>
+    
+    <!-- 依赖库 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+    
+    <!-- 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto+Mono:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <!-- 页面专属样式 (保持不变) -->
+    <style>
+        :root {
+            --primary-glow: #9370DB; /* 中紫色 */
+            --primary-glow-rgb: 147, 112, 219;
+            --background-dark: #0f0b1a;
+            --panel-bg: rgba(20, 15, 35, 0.75);
+            --text-primary: #e6e0f3;
+            --text-secondary: #a79fc0;
+            --border-color: rgba(147, 112, 219, 0.3);
+            --font-title: 'Orbitron', sans-serif;
+            --font-mono: 'Roboto Mono', monospace;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--background-dark);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            overflow-x: hidden; /* 防止粒子效果轻微溢出 */
+        }
+
+        #particles-js {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .navbar {
+            background-color: rgba(15, 11, 26, 0.8);
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .navbar-brand { font-family: var(--font-title); color: var(--primary-glow) !important; text-shadow: 0 0 5px var(--primary-glow);}
+        .nav-link { font-weight: 700; color: var(--text-secondary) !important; transition: all 0.3s ease; }
+        .nav-link:hover, .nav-link.active { color: var(--text-primary) !important; text-shadow: 0 0 4px var(--primary-glow); }
+        .btn-contact { border-radius: 20px; border-color: var(--primary-glow); color: var(--primary-glow); }
+        .btn-contact:hover { background-color: var(--primary-glow); color: white; box-shadow: 0 0 10px var(--primary-glow); }
+
+        .content-section {
+            padding: 6rem 1rem;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+        
+        .hero-section {
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .hero-title {
+            font-family: var(--font-title);
+            font-size: clamp(2rem, 6vw, 4rem);
+            margin-bottom: 1rem;
+        }
+        .hero-title .highlight {
+            color: var(--primary-glow);
+            text-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 2rem;
+        }
+        
+        .section-header { margin-bottom: 3rem; }
+        .section-header .sub-heading { text-transform: uppercase; color: var(--primary-glow); font-size: 0.9rem; letter-spacing: 2px; margin-bottom: 0.5rem; }
+        .section-header .main-heading { font-family: var(--font-title); font-size: 2.5rem; }
+        .section-header p { max-width: 600px; margin: 1rem auto 0; color: var(--text-secondary); }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1.5rem;
+        }
+        .tech-card {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 1.5rem 1rem;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color); /* 默认边框 */
+        }
+        .tech-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 8px 30px rgba(var(--primary-glow-rgb), 0.3);
+            border-color: rgba(var(--primary-glow-rgb), 0.7);
+        }
+        .tech-card img {
+            height: 40px;
+            margin-bottom: 1rem;
+            object-fit: contain;
+        }
+        .tech-card span {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .login-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0 40px rgba(var(--primary-glow-rgb), 0.2), inset 0 0 25px rgba(var(--primary-glow-rgb), 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 2.5rem;
+            border-radius: 8px;
+            max-width: 450px;
+        }
+        .btn-discord-login { background-color: #5865F2; border: none; }
+        .btn-discord-login:hover { background-color: #4752C4; }
+
+        .btn-action { background-color: var(--primary-glow); border: none; color: white; }
+        .btn-action:hover { background-color: #a378e9; box-shadow: 0 0 15px var(--primary-glow); }
+        
+        .form-control { background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-primary); }
+        .form-control:focus { background-color: rgba(0,0,0,0.5); border-color: var(--primary-glow); box-shadow: 0 0 10px rgba(var(--primary-glow-rgb), 0.5); color: #fff; }
+        .dev-login-toggle { font-size: 0.8rem; color: var(--text-secondary); text-decoration: none; }
+        .dev-login-toggle:hover { color: var(--primary-glow); }
+
+        footer { padding: 2rem 0; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <canvas id="particles-js"></canvas>
+    
+    <!-- 顶部导航栏 (保持不变) -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#hero"><i class="fa-solid fa-user-astronaut"></i> Puneet</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item"><a class="nav-link" href="#hero">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#tech-stack">关于此项目</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#login-section">控制台登录</a></li>
+                </ul>
+                <a href="#contact" class="btn btn-sm btn-outline-light btn-contact">联络我</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <main>
+            <!-- 英雄/关于我 区域 (保持不变) -->
+            <section id="hero" class="content-section hero-section">
+                <p class="sub-heading" style="color: var(--primary-glow); letter-spacing: 2px;">开发者 & 机器人架构师</p>
+                <h1 class="hero-title">创造<span class="highlight">自动化</span>的未来</h1>
+                <p class="hero-subtitle">嗨，我是 Puneet！我是一名热衷于创造和探索的开发者，致力于构建高效、可靠且用户体验卓越的自动化解决方案。这个机器人项目便是我对技术热情的最佳体现。</p>
+                <div>
+                    <a href="#tech-stack" class="btn btn-action">了解项目技术</a>
+                    <a href="#login-section" class="btn btn-outline-light ms-2">进入控制台</a>
+                </div>
+            </section>
+
+            <!-- 技术栈 区域 (保持不变) -->
+            <section id="tech-stack" class="content-section">
+                <div class="section-header">
+                    <p class="sub-heading">项目架构</p>
+                    <h2 class="main-heading">技术与技能</h2>
+                    <p>此机器人由多种现代化的程式语言、框架和工具构建而成，确保了其稳定性、可扩展性和强大的功能。</p>
+                </div>
+                
+                <h4 class="mb-3 mt-4 text-start small text-uppercase" style="color: var(--text-secondary);">程式语言</h4>
+                <div class="tech-grid">
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/python/python-original.svg" alt="Python"><span>Python</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/javascript/javascript-original.svg" alt="JavaScript"><span>JavaScript</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/html5/html5-original.svg" alt="HTML5"><span>HTML5</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/css3/css3-original.svg" alt="CSS3"><span>CSS3</span></div>
+                </div>
+
+                <h4 class="mb-3 mt-5 text-start small text-uppercase" style="color: var(--text-secondary);">后端与框架</h4>
+                <div class="tech-grid">
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/flask/flask-original.svg" alt="Flask" style="filter: invert(1);"><span>Flask</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/discordjs/discordjs-original.svg" alt="discord.py"><span>discord.py</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/socketio/socketio-original.svg" alt="Socket.IO"><span>Socket.IO</span></div>
+                    <div class="tech-card"><img src="https://avatars.githubusercontent.com/u/364562?s=200&v=4" alt="Eventlet"><span>Eventlet</span></div>
+                </div>
+
+                <h4 class="mb-3 mt-5 text-start small text-uppercase" style="color: var(--text-secondary);">数据库</h4>
+                <div class="tech-grid">
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/sqlite/sqlite-original.svg" alt="SQLite"><span>SQLite</span></div>
+                </div>
+                
+                <h4 class="mb-3 mt-5 text-start small text-uppercase" style="color: var(--text-secondary);">工具与平台</h4>
+                <div class="tech-grid">
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bootstrap/bootstrap-original.svg" alt="Bootstrap"><span>Bootstrap</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fontawesome/fontawesome-original.svg" alt="Font Awesome"><span>Font Awesome</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/git/git-original.svg" alt="Git"><span>Git</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg" alt="Docker"><span>Docker</span></div>
+                    <div class="tech-card"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscode/vscode-original.svg" alt="VSCode"><span>VSCode</span></div>
+                </div>
+            </section>
+
+            <!-- 登录 区域 -->
+            <section id="login-section" class="content-section">
+                 <div class="section-header">
+                    <p class="sub-heading">授权访问</p>
+                    <h2 class="main-heading">控制台接入点</h2>
+                </div>
+                <div class="login-panel mx-auto">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} small py-2 my-3">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <div class="d-grid gap-3">
+                        <!-- 【核心修改】为Discord登录按钮添加ID和data属性 -->
+                        <a href="{{ oauth_url }}" 
+                           id="discord-login-btn"
+                           class="btn btn-lg btn-discord-login" 
+                           data-bs-toggle="modal" 
+                           data-bs-target="#termsModal"
+                           data-auth-url="{{ oauth_url }}">
+                            <i class="fa-brands fa-discord me-2"></i> 管理员授权登录
+                        </a>
+                    </div>
+                    
+                    <hr class="my-4" style="border-color: var(--border-color);">
+                    
+                    <form method="POST" action="{{ url_for('sub_account_login') }}">
+                        <label class="form-label text-center d-block mb-2 text-secondary">协作者密钥</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="access_key" placeholder="输入访问密钥..." required>
+                            <button type="submit" class="btn btn-outline-light">登入</button>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mt-3">
+                        <a class="dev-login-toggle" data-bs-toggle="collapse" href="#superuserCollapse">
+                           开发者入口
+                        </a>
+                    </div>
+
+                    <div class="collapse mt-2" id="superuserCollapse">
+                        <form method="POST" action="{{ url_for('superuser_login') }}">
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="password" placeholder="开发者密码..." required>
+                                <button type="submit" class="btn btn-outline-warning">接入</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 行动号召 区域 (保持不变) -->
+            <section id="contact" class="content-section">
+                 <div class="section-header">
+                    <h2 class="main-heading">准备好开始了吗？</h2>
+                    <p>立即邀请机器人到您的服务器，或加入我们的社群，体验其强大的功能并参与未来的发展。</p>
+                </div>
+                <div>
+                    <a href="https://discord.com/oauth2/authorize?client_id={{ client_id }}&permissions=8&scope=bot%20applications.commands" class="btn btn-lg btn-action" target="_blank"><i class="fa-solid fa-rocket me-2"></i>邀请机器人</a>
+                    <a href="https://discord.gg/eyrMV7MKck" class="btn btn-lg btn-outline-light ms-2" target="_blank"><i class="fab fa-discord me-2"></i>加入我的 Discord 社群</a>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            © 2025 Puneet & GJ Team. All rights reserved.
+        </footer>
+    </div>
+    
+    <!-- 【新增】条款模态框 -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content" style="background-color: var(--panel-bg); border-color: var(--border-color);">
+                <div class="modal-header" style="border-bottom-color: var(--border-color);">
+                    <h5 class="modal-title" id="termsModalLabel"><i class="fas fa-file-contract me-2"></i>使用条款与服务协议</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>最后更新日期：2024年5月21日</strong></p>
+                    <p>欢迎使用我们的机器人控制台服务。在访问或使用本服务前，请仔细阅读以下条款。您的使用行为即表示您已阅读、理解并同意接受本条款的约束。</p>
+                    
+                    <h6>1. 服务描述</h6>
+                    <p>本服务提供了一个网页界面，用于管理和配置您拥有相应权限的Discord服务器中的机器人。功能包括但不限于成员管理、身份组操作、经济系统调控、票据系统管理、内容审查和公告发布等。</p>
+
+                    <h6>2. 用户行为准则</h6>
+                    <p>您同意不使用本服务进行任何非法或未经授权的活动，包括但不限于：</p>
+                    <ul>
+                        <li>侵犯他人隐私，滥用权限获取或泄露服务器内成员信息。</li>
+                        <li>进行任何形式的骚扰、欺凌或恶意攻击行为。</li>
+                        <li>发布垃圾信息、恶意软件或任何有害内容。</li>
+                        <li>试图绕过、破解或干扰本服务的安全措施。</li>
+                        <li>滥用经济系统，例如恶意刷取货币或利用漏洞破坏服务器经济平衡。</li>
+                    </ul>
+
+                    <h6>3. 数据与隐私</h6>
+                    <p>我们致力于保护您的数据安全。本服务将处理以下类型的数据：</p>
+                    <ul>
+                        <li><strong>Discord用户信息：</strong> 您的Discord用户ID、用户名、头像和您所在的服务器列表，仅用于身份验证和权限判断。</li>
+                        <li><strong>服务器数据：</strong> 您所管理的服务器的成员列表、身份组信息、频道信息等，仅用于在Web面板上展示和执行您的管理操作。</li>
+                        <li><strong>操作日志：</strong> 您在Web面板上执行的所有关键操作（如禁言、踢出、修改余额等）都将被记录，以便于追溯和审计。</li>
+                    </ul>
+                    <p>我们承诺不会将您的数据出售或分享给任何第三方。所有数据仅用于提供和改进本服务。</p>
+
+                    <h6>4. 免责声明</h6>
+                    <p>本服务“按原样”提供。我们不保证服务完全无错误或不间断。对于因使用或无法使用本服务而导致的任何直接或间接损失，我们不承担任何责任。您对自己通过本面板执行的所有操作负全部责任，请谨慎操作。</p>
+
+                    <h6>5. 条款变更</h6>
+                    <p>我们保留随时修改这些条款的权利。任何修改将在此页面上公布。继续使用本服务即表示您接受修改后的条款。</p>
+
+                    <p class="text-warning mt-4"><strong>点击“我同意”即表示您已年满13周岁（或您所在地区的法定年龄），并同意遵守以上所有条款。</strong></p>
+                </div>
+                <div class="modal-footer" style="border-top-color: var(--border-color);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">我不同意</button>
+                    <button type="button" class="btn btn-primary" id="agree-terms-btn">我同意并继续</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JS 依赖 (保持不变) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 动态粒子背景脚本 (保持不变)
+        const canvas = document.getElementById('particles-js');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            let particlesArray;
+            
+            const mouse = {
+                x: null,
+                y: null,
+                radius: 0 // 将在 setCanvasSize 中设置
+            };
+
+            window.addEventListener('mousemove', (event) => {
+                mouse.x = event.x;
+                mouse.y = event.y;
+            });
+            
+            window.addEventListener('mouseout', () => {
+                mouse.x = null;
+                mouse.y = null;
+            });
+
+            const setCanvasSize = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                mouse.radius = (canvas.width / 12) * (canvas.height / 12);
+            };
+            
+            class Particle {
+                constructor(x, y, dX, dY, s, c) {
+                    this.x = x; this.y = y;
+                    this.directionX = dX; this.directionY = dY;
+                    this.size = s; this.color = c;
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+                update() {
+                    // 边缘反弹
+                    if (this.x > canvas.width || this.x < 0) this.directionX = -this.directionX;
+                    if (this.y > canvas.height || this.y < 0) this.directionY = -this.directionY;
+                    
+                    // 【流动性升级】鼠标排斥效果
+                    if (mouse.x !== null && mouse.y !== null) {
+                        let dx_mouse = this.x - mouse.x;
+                        let dy_mouse = this.y - mouse.y;
+                        let distance = Math.sqrt(dx_mouse*dx_mouse + dy_mouse*dy_mouse);
+                        if (distance < mouse.radius / 8) { // 只在很近的距离内产生排斥
+                            const forceDirectionX = dx_mouse / distance;
+                            const forceDirectionY = dy_mouse / distance;
+                            // 力度随着距离减小而增大
+                            const force = (mouse.radius / 8 - distance) / (mouse.radius / 8);
+                            const pushStrength = 0.5; // 排斥力度系数
+                            
+                            this.directionX += forceDirectionX * force * pushStrength;
+                            this.directionY += forceDirectionY * force * pushStrength;
+                        }
+                    }
+
+                    this.x += this.directionX;
+                    this.y += this.directionY;
+                    this.draw();
+                }
+            }
+            
+            const init = () => {
+                particlesArray = [];
+                // 【性能优化】减少粒子密度
+                const num = (canvas.width * canvas.height) / 15000;
+                for (let i=0; i<num; i++) {
+                    const s = (Math.random()*2.5)+1; // 粒子稍大一点
+                    const x = (Math.random()*((innerWidth-s*2)-(s*2))+s*2);
+                    const y = (Math.random()*((innerHeight-s*2)-(s*2))+s*2);
+                    // 【流动性升级】增加基础速度
+                    const dX = (Math.random()*0.8)-0.4;
+                    const dY = (Math.random()*0.8)-0.4;
+                    const c = 'rgba(147, 112, 219, 0.6)';
+                    particlesArray.push(new Particle(x,y,dX,dY,s,c));
+                }
+            };
+            
+            const connect = () => {
+                let opacity = 1;
+                // 【性能优化】减小粒子间的连接距离
+                const connectDistance = (innerWidth/10) * (innerHeight/10);
+
+                for (let a=0; a<particlesArray.length; a++) {
+                    // 与鼠标连接
+                     if (mouse.x !== null && mouse.y !== null) {
+                        let dist_mouse = ((particlesArray[a].x - mouse.x) * (particlesArray[a].x - mouse.x)) +
+                                     ((particlesArray[a].y - mouse.y) * (particlesArray[a].y - mouse.y));
+                        if (dist_mouse < mouse.radius) {
+                            opacity = 1 - (dist_mouse / mouse.radius);
+                            ctx.strokeStyle = `rgba(220, 200, 255, ${opacity * 0.7})`; // 使用更亮的颜色
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
+                            ctx.lineTo(mouse.x, mouse.y);
+                            ctx.stroke();
+                        }
+                    }
+
+                    // 与其他粒子连接
+                    for (let b=a; b<particlesArray.length; b++) {
+                        const dist = ((particlesArray[a].x-particlesArray[b].x)*(particlesArray[a].x-particlesArray[b].x)) +
+                                     ((particlesArray[a].y-particlesArray[b].y)*(particlesArray[a].y-particlesArray[b].y));
+                        
+                        if (dist < connectDistance) {
+                            opacity = 1-(dist/connectDistance);
+                            ctx.strokeStyle = `rgba(147, 112, 219, ${opacity})`;
+                            ctx.lineWidth=1;
+                            ctx.beginPath();
+                            ctx.moveTo(particlesArray[a].x, particlesArray[a].y);
+                            ctx.lineTo(particlesArray[b].x, particlesArray[b].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            };
+            
+            const animate = () => {
+                requestAnimationFrame(animate); // 这是动画流畅的关键
+                ctx.clearRect(0,0,innerWidth,innerHeight);
+                for (let i=0; i<particlesArray.length; i++) { particlesArray[i].update(); }
+                connect();
+            };
+            
+            window.addEventListener('resize', () => { setCanvasSize(); init(); });
+            setCanvasSize();
+            init();
+            animate();
+        }
+
+        // 导航栏滚动时高亮对应区域的链接
+        const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+        const sections = document.querySelectorAll('.content-section');
+        const makeLinkActive = (id) => {
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${id}`) {
+                    link.classList.add('active');
+                }
+            });
+        };
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    makeLinkActive(entry.target.id);
+                }
+            });
+        }, { threshold: 0.5 });
+        sections.forEach(section => observer.observe(section));
+    </script>
+
+    <!-- 【新增】条款模态框的控制脚本 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const discordLoginBtn = document.getElementById('discord-login-btn');
+            const termsModal = new bootstrap.Modal(document.getElementById('termsModal'));
+            const agreeBtn = document.getElementById('agree-terms-btn');
+            const termsAgreedKey = 'userHasAgreedToTerms';
+
+            if (discordLoginBtn) {
+                discordLoginBtn.addEventListener('click', (event) => {
+                    // 检查本地存储中是否已有同意记录
+                    if (localStorage.getItem(termsAgreedKey) === 'true') {
+                        // 如果已同意，直接跳转到认证URL
+                        console.log("用户已同意过条款，直接跳转。");
+                        window.location.href = discordLoginBtn.dataset.authUrl;
+                    } else {
+                        // 如果未同意，阻止默认的跳转行为，显示模态框
+                        console.log("用户未同意过条款，显示模态框。");
+                        event.preventDefault();
+                        termsModal.show();
+                    }
+                });
+            }
+
+            if (agreeBtn) {
+                agreeBtn.addEventListener('click', () => {
+                    // 用户点击“同意”按钮
+                    console.log("用户点击了同意按钮。");
+                    // 在本地存储中记录同意状态
+                    localStorage.setItem(termsAgreedKey, 'true');
+                    // 隐藏模态框
+                    termsModal.hide();
+                    // 手动跳转到认证URL
+                    if (discordLoginBtn) {
+                        window.location.href = discordLoginBtn.dataset.authUrl;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

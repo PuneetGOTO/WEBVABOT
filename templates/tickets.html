@@ -1,0 +1,465 @@
+<!-- templates/tickets.html (最终修复版 v6 - AI托管模式) -->
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* 专属于此页面的CSS */
+    .tickets-layout {
+        display: grid;
+        grid-template-columns: 280px 350px 1fr;
+        gap: 1rem;
+        height: calc(100vh - 120px); /* 视口高度减去导航和页脚的大致高度 */
+        max-height: 850px;
+    }
+
+    .tickets-panel {
+        background-color: var(--bg-dark-2);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 0.75rem 1rem;
+        font-family: var(--font-primary);
+        font-weight: 700;
+        background-color: rgba(var(--primary-glow-rgb), 0.05);
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .panel-content {
+        overflow-y: auto;
+        padding: 0.5rem;
+    }
+
+    /* 票据列表项 */
+    .ticket-list-item {
+        border-radius: 6px;
+        padding: 0.75rem;
+        border: 1px solid transparent;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+        cursor: pointer;
+    }
+    .ticket-list-item:hover {
+        background-color: rgba(var(--primary-glow-rgb), 0.1);
+    }
+    .ticket-list-item.active {
+        background-color: rgba(var(--primary-glow-rgb), 0.2);
+        border-color: var(--primary-glow);
+    }
+    .ticket-status-badge {
+        font-size: 0.7rem;
+        padding: 0.2em 0.5em;
+    }
+    .ticket-status-OPEN { background-color: var(--secondary-glow); color: var(--bg-dark-1); }
+    .ticket-status-CLAIMED { background-color: var(--warning-glow); color: var(--bg-dark-1); }
+
+    /* 【新增】AI托管状态的徽章 */
+    .ai-managed-badge {
+        font-size: 0.7rem;
+        padding: 0.2em 0.5em;
+        background-color: var(--primary-glow);
+        color: white;
+    }
+
+    /* 聊天视图 */
+    #ticket-chat-view { height: 100%; }
+    #ticket-chat-messages { flex-grow: 1; padding: 1rem; }
+    #ticket-reply-form-container { padding: 1rem; border-top: 1px solid var(--border-color); }
+    #ticket-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        height: 100%;
+        color: var(--text-secondary);
+    }
+
+    /* 聊天消息样式 */
+    .message-item {
+        display: flex;
+        margin-bottom: 1rem;
+    }
+    .message-item .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    .message-item .message-content {
+        max-width: 100%;
+    }
+    .message-item .message-body p {
+        background-color: var(--bg-dark-3);
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.25rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .ticket-embed {
+        background-color: var(--bg-dark-3);
+        border-left: 4px solid #4f545c;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<body data-page-id="tickets" data-guild-id="{{ guild.id }}">
+<div class="container-fluid p-4">
+    <div class="tickets-layout">
+        <!-- 左栏: 筛选 -->
+        <div class="tickets-panel">
+            <div class="panel-header">筛选</div>
+            <div class="panel-content" id="filter-container">
+                <div class="mb-3">
+                    <label class="form-label">按状态</label>
+                    <div class="form-check">
+                        <input class="form-check-input filter-checkbox" type="radio" name="statusFilter" id="status-all" value="all" checked>
+                        <label class="form-check-label" for="status-all">所有开启的</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input filter-checkbox" type="radio" name="statusFilter" id="status-open" value="OPEN">
+                        <label class="form-check-label" for="status-open">新票据</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input filter-checkbox" type="radio" name="statusFilter" id="status-claimed" value="CLAIMED">
+                        <label class="form-check-label" for="status-claimed">已认领</label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">按部门</label>
+                    <div id="department-filter-list">
+                        <div class="text-muted small">正在加载部门...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中栏: 票据列表 -->
+        <div class="tickets-panel">
+            <div class="panel-header">票据列表</div>
+            <div class="panel-content" id="ticket-list-container">
+                <div class="p-3 text-center text-muted">正在加载票据...</div>
+            </div>
+        </div>
+
+        <!-- 右栏: 聊天视图 -->
+        <div class="tickets-panel">
+             <div id="ticket-chat-view" class="d-flex flex-column d-none">
+                <div class="panel-header" id="ticket-chat-header"></div>
+                <div class="panel-content" id="ticket-chat-messages"></div>
+                <div id="ticket-reply-form-container" class="flex-shrink-0">
+                    <form id="ticket-reply-form">
+                        <div class="input-group">
+                            <input type="text" id="ticket-reply-input" class="form-control" placeholder="在此输入回复..." disabled>
+                            <button class="btn btn-outline-info" type="button" id="ai-suggest-reply-btn" title="AI建议回复" disabled>
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </button>
+                            <button class="btn btn-primary" type="submit" id="ticket-reply-button" disabled>发送</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div id="ticket-placeholder" class="d-flex">
+                <div>
+                    <i class="fa-solid fa-arrow-left fa-3x text-muted"></i>
+                    <h5 class="mt-3">从列表中选择一个票据</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 引入 Socket.IO 客户端库 -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<!-- 票据页面的专属JS逻辑 -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.body.dataset.pageId !== 'tickets') return;
+
+    const GUILD_ID = document.body.dataset.guildId;
+    let socket;
+    let allTickets = [];
+    let currentTicket = null;
+    const userInfo = JSON.parse('{{ user|tojson }}');
+
+    const ticketListContainer = document.getElementById('ticket-list-container');
+    const chatView = document.getElementById('ticket-chat-view');
+    const chatHeader = document.getElementById('ticket-chat-header');
+    const chatMessages = document.getElementById('ticket-chat-messages');
+    const chatPlaceholder = document.getElementById('ticket-placeholder');
+    const replyForm = document.getElementById('ticket-reply-form');
+    const replyInput = document.getElementById('ticket-reply-input');
+    const replyButton = document.getElementById('ticket-reply-button');
+    const departmentFilterList = document.getElementById('department-filter-list');
+    const filterContainer = document.getElementById('filter-container');
+    const aiSuggestBtn = document.getElementById('ai-suggest-reply-btn');
+
+    async function apiRequest(endpoint, options = {}) {
+        try {
+            const response = await fetch(endpoint, options);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || `HTTP 错误: ${response.status}`);
+            return data;
+        } catch (error) {
+            console.error(`请求失败 [${endpoint}]:`, error);
+            alert(`操作失败: ${error.message}`);
+            throw error;
+        }
+    }
+
+    function renderTicketList() {
+        const statusFilter = document.querySelector('input[name="statusFilter"]:checked').value;
+        const deptFilter = document.querySelector('input[name="deptFilter"]:checked').value;
+        const filteredTickets = allTickets.filter(t => 
+            (statusFilter === 'all' || t.status === statusFilter) &&
+            (deptFilter === 'all' || t.department_id === deptFilter)
+        );
+
+        if (filteredTickets.length === 0) {
+            ticketListContainer.innerHTML = '<div class="p-3 text-center text-muted">没有符合条件的票据。</div>';
+            return;
+        }
+
+        ticketListContainer.innerHTML = filteredTickets.map(ticket => {
+            const aiManagedBadge = ticket.is_ai_managed ? '<span class="badge rounded-pill ai-managed-badge ms-2">AI托管中</span>' : '';
+            return `
+            <div class="ticket-list-item ${currentTicket && currentTicket.ticket_id === ticket.ticket_id ? 'active' : ''}" data-ticket-id="${ticket.ticket_id}">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1 text-truncate" title="#${ticket.channel_id}">#${ticket.channel_id}</h6>
+                    <div>
+                        <span class="badge rounded-pill ticket-status-badge ticket-status-${ticket.status}">${ticket.status}</span>
+                        ${aiManagedBadge}
+                    </div>
+                </div>
+                <p class="mb-1 small text-muted">创建者: ${ticket.creator_name || '未知'}</p>
+                <small class="text-muted">部门: ${ticket.department_name}</small>
+            </div>`;
+        }).join('');
+    }
+    
+    function renderMessage(msg) {
+        let embedHtml = (msg.embeds || []).map(embed => {
+            const authorName = (embed.author && embed.author.name) ? `<strong>${embed.author.name}</strong>` : '';
+            const description = (embed.description || '').replace(/\n/g, '<br>');
+            const embedColor = (embed.color) ? `#${embed.color.toString(16).padStart(6, '0')}` : '#2C2F33';
+            return `<div class="ticket-embed mt-2" style="border-left-color: ${embedColor};">${authorName}<div class="small">${description}</div></div>`;
+        }).join('');
+        const messageHtml = `<div class="message-item"><img src="${msg.author.avatar_url}" class="avatar" alt=""><div class="message-content"><strong>${msg.author.name}</strong><small class="text-muted ms-2">${new Date(msg.timestamp).toLocaleString()}</small><div class="message-body"><p>${(msg.content || '').replace(/\n/g, '<br>')}</p>${embedHtml}</div></div></div>`;
+        chatMessages.insertAdjacentHTML('beforeend', messageHtml);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function loadTicket(ticketId) {
+        const ticket = allTickets.find(t => t.ticket_id === ticketId);
+        if (!ticket) {
+            console.error(`无法在本地票据列表中找到 ID 为 ${ticketId} 的票据。`);
+            return;
+        }
+        
+        currentTicket = ticket;
+        renderTicketList();
+
+        chatPlaceholder.classList.replace('d-flex', 'd-none');
+        chatView.classList.replace('d-none', 'd-flex');
+        
+        // 【修改】根据AI托管状态动态生成按钮
+        const isAiManaged = currentTicket.is_ai_managed;
+        const aiAssistBtnClass = isAiManaged ? 'btn-outline-warning' : 'btn-outline-primary';
+        const aiAssistBtnText = isAiManaged ? '停止AI托管' : '开启AI托管';
+        let actionButtonsHtml = `<button class="btn btn-sm ${aiAssistBtnClass} me-2" id="toggle-ai-assist-btn">${aiAssistBtnText}</button>`;
+
+        if (ticket.status === 'OPEN') {
+            actionButtonsHtml += `<button class="btn btn-sm btn-success" id="claim-ticket-btn">分配给我</button>`;
+        } else if (ticket.status === 'CLAIMED') {
+            actionButtonsHtml += `<span class="text-warning small me-3">负责人: ${ticket.claimed_by_name || '未知'}</span>`;
+        }
+        actionButtonsHtml += `<button class="btn btn-sm btn-danger ms-2" id="close-ticket-btn" data-ticket-id="${ticket.ticket_id}">关闭票据</button>`;
+
+        chatHeader.innerHTML = `<div class="d-flex align-items-center w-100"><span class="text-truncate">票据 #${ticket.channel_id}</span><div class="ms-auto d-flex align-items-center">${actionButtonsHtml}</div></div>`;
+        
+        chatMessages.innerHTML = '<div class="text-center text-muted p-3">正在加载聊天记录...</div>';
+        // 【修改】如果AI托管，则禁用手动输入
+        replyInput.disabled = isAiManaged;
+        replyButton.disabled = isAiManaged;
+        aiSuggestBtn.disabled = isAiManaged;
+        replyInput.placeholder = isAiManaged ? 'AI正在托管此票据，人工回复将自动停止AI。' : '在此输入回复...';
+        if(!isAiManaged) replyInput.focus();
+
+        if (socket) socket.emit('join_ticket_room', { channel_id: ticket.channel_id });
+
+        try {
+            const data = await apiRequest(`/api/guild/${GUILD_ID}/ticket/${ticket.channel_id}/history`);
+            chatMessages.innerHTML = '';
+            if (data.status === 'success') data.history.forEach(renderMessage);
+            else chatMessages.innerHTML = `<div class="text-center text-danger p-3">加载历史记录失败: ${data.message}</div>`;
+        } catch (e) {
+            chatMessages.innerHTML = `<div class="text-center text-danger p-3">加载历史记录时出错: ${e.message}</div>`;
+        }
+    }
+
+    async function initializePage() {
+        try {
+            const [ticketsData, deptsData] = await Promise.all([
+                apiRequest(`/api/guild/${GUILD_ID}/tickets`),
+                apiRequest(`/api/guild/${GUILD_ID}/ticket_departments`)
+            ]);
+            
+            let deptFilterHtml = `<div class="form-check"><input class="form-check-input filter-checkbox" type="radio" name="deptFilter" id="dept-all" value="all" checked><label class="form-check-label" for="dept-all">所有部门</label></div>`;
+            if (deptsData.status === 'success') {
+                deptFilterHtml += deptsData.departments.map(d => `<div class="form-check"><input class="form-check-input filter-checkbox" type="radio" name="deptFilter" id="dept-${d.department_id}" value="${d.department_id}"><label class="form-check-label" for="dept-${d.department_id}">${d.name}</label></div>`).join('');
+            }
+            departmentFilterList.innerHTML = deptFilterHtml;
+
+            if (ticketsData.status === 'success') {
+                allTickets = ticketsData.tickets;
+                renderTicketList();
+            } else {
+                ticketListContainer.innerHTML = `<div class="p-3 text-center text-danger">加载票据失败: ${ticketsData.message}</div>`;
+            }
+        } catch (e) {
+            ticketListContainer.innerHTML = `<div class="p-3 text-center text-danger">加载页面数据时出错: ${e.message}</div>`;
+        }
+    }
+
+    filterContainer.addEventListener('change', (e) => { if (e.target.classList.contains('filter-checkbox')) renderTicketList(); });
+    
+    ticketListContainer.addEventListener('click', (e) => {
+        const item = e.target.closest('.ticket-list-item');
+        if (item) loadTicket(item.dataset.ticketId);
+    });
+
+    chatHeader.addEventListener('click', async (e) => {
+        const target = e.target;
+        if (target.id === 'toggle-ai-assist-btn') {
+            target.disabled = true;
+            target.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const response = await apiRequest(`/api/guild/${GUILD_ID}/ticket/${currentTicket.ticket_id}/toggle_ai_assist`, { method: 'POST' });
+                if (response.status === 'success') {
+                    const ticketIndex = allTickets.findIndex(t => t.ticket_id === currentTicket.ticket_id);
+                    if (ticketIndex > -1) {
+                        allTickets[ticketIndex].is_ai_managed = response.is_ai_managed;
+                        // 重新加载当前票据以更新整个UI
+                        loadTicket(currentTicket.ticket_id); 
+                    }
+                }
+            } catch (error) {
+                // 出错时恢复按钮状态
+                loadTicket(currentTicket.ticket_id); 
+            }
+        }
+        
+        if (target.id === 'claim-ticket-btn') {
+            target.disabled = true;
+            target.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const data = await apiRequest(`/api/guild/${GUILD_ID}/ticket/${currentTicket.ticket_id}/claim`, { method: 'POST' });
+                if (data.status === 'success') {
+                    const ticketIndex = allTickets.findIndex(t => t.ticket_id === currentTicket.ticket_id);
+                    if (ticketIndex > -1) {
+                        allTickets[ticketIndex].status = 'CLAIMED';
+                        allTickets[ticketIndex].claimed_by_id = userInfo.id;
+                        allTickets[ticketIndex].claimed_by_name = userInfo.username;
+                    }
+                    loadTicket(currentTicket.ticket_id);
+                } else {
+                    alert(`认领失败: ${data.message}`);
+                    target.disabled = false;
+                    target.textContent = '分配给我';
+                }
+            } catch (err) { target.disabled = false; target.textContent = '分配给我'; }
+        }
+
+        if (target.id === 'close-ticket-btn') {
+            const ticketIdToClose = target.dataset.ticketId;
+            if (!confirm(`确定要关闭这个票据吗？此操作不可撤销。`)) return;
+
+            target.disabled = true;
+            target.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            try {
+                const data = await apiRequest(`/api/guild/${GUILD_ID}/ticket/${ticketIdToClose}/close`, { method: 'POST' });
+                alert(data.message);
+            } catch (err) {
+                target.disabled = false;
+                target.textContent = '关闭票据';
+            }
+        }
+    });
+
+    replyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const content = replyInput.value.trim();
+        if (content && currentTicket && socket && socket.connected) {
+            socket.emit('send_ticket_reply', { guild_id: GUILD_ID, channel_id: currentTicket.channel_id, content: content });
+            replyInput.value = '';
+        }
+    });
+    
+    aiSuggestBtn.addEventListener('click', async () => {
+        if (!currentTicket) return;
+
+        aiSuggestBtn.disabled = true;
+        aiSuggestBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        replyInput.placeholder = 'AI 正在分析票据内容，请稍候...';
+
+        try {
+            const data = await apiRequest(`/api/guild/${GUILD_ID}/ticket/${currentTicket.ticket_id}/ai_suggest`, { method: 'POST' });
+            if (data.status === 'success' && data.suggestion) {
+                replyInput.value = data.suggestion;
+                replyInput.focus();
+            } else {
+                alert(`AI建议失败: ${data.message}`);
+            }
+        } catch (error) {
+            console.error('AI建议请求失败', error);
+        } finally {
+            aiSuggestBtn.disabled = false;
+            aiSuggestBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+            replyInput.placeholder = '在此输入回复...';
+        }
+    });
+
+    try {
+        socket = io({ transports: ['websocket'], path: '/my-custom-socket-path' });
+        socket.on('connect', () => socket.emit('join_audit_room', { guild_id: GUILD_ID }));
+        socket.on('new_ticket', (ticket) => { allTickets.unshift(ticket); renderTicketList(); });
+        socket.on('new_ticket_message', (msg) => { if (currentTicket && currentTicket.channel_id === msg.channel_id) renderMessage(msg); });
+        socket.on('ticket_closed', (data) => {
+            allTickets = allTickets.filter(t => t.channel_id !== data.channel_id);
+            if (currentTicket && currentTicket.channel_id === data.channel_id) {
+                currentTicket = null;
+                chatView.classList.replace('d-flex', 'd-none');
+                chatPlaceholder.classList.replace('d-none', 'd-flex');
+            }
+            renderTicketList();
+        });
+        
+        // 【新增】监听AI状态改变事件
+        socket.on('ticket_ai_status_changed', (data) => {
+            const ticketIndex = allTickets.findIndex(t => t.ticket_id === data.ticket_id);
+            if (ticketIndex > -1) {
+                allTickets[ticketIndex].is_ai_managed = data.is_ai_managed;
+                if (currentTicket && currentTicket.ticket_id === data.ticket_id) {
+                    loadTicket(currentTicket.ticket_id);
+                } else {
+                    renderTicketList();
+                }
+            }
+        });
+
+    } catch (e) { console.error("Socket.IO 初始化失败:", e); }
+
+    initializePage();
+});
+</script>
+</body>
+{% endblock %}

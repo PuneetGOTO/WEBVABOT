@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 页面标识符，用于JS识别 -->
+<body data-page-id="dashboard">
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">仪表盘</h1>
+</div>
+
+<!-- 状态卡片 -->
+<div class="row dashboard-stats">
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card text-bg-primary h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fa-solid fa-server"></i> 服务器</h5>
+                <p class="card-text fs-4" id="guild-count">--</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card text-bg-success h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fa-solid fa-users"></i> 总用户</h5>
+                <p class="card-text fs-4" id="user-count">--</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card text-bg-warning h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fa-solid fa-satellite-dish"></i> 延迟</h5>
+                <p class="card-text fs-4" id="latency">-- ms</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card text-bg-info h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fa-solid fa-hashtag"></i> 已同步指令</h5>
+                <p class="card-text fs-4" id="command-count">--</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 服务器选择器 -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="fa-solid fa-sliders"></i> 管理服务器
+    </div>
+    <div class="card-body">
+        <h5 class="card-title">选择一个服务器进行管理</h5>
+        <p class="card-text text-muted small">
+            {% if user.is_superuser %}
+            您是应用开发者，可以管理机器人所在的所有服务器。
+            {% else %}
+            列表仅显示您拥有“管理服务器”权限且机器人也在的服务器。
+            {% endif %}
+        </p>
+        <form id="guild-select-form">
+            <div class="input-group">
+                <select class="form-select" id="guild-selector">
+                    <option selected disabled>选择服务器...</option>
+                    {% for guild in guilds %}
+                        <option value="{{ guild.id }}">{{ guild.name }} ({{ guild.id }})</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-outline-primary" type="submit">管理</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 配置状态 -->
+<div class="card">
+    <div class="card-header">
+        <i class="fa-solid fa-cogs"></i> 机器人配置状态
+    </div>
+    <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            DeepSeek AI 密钥
+            {% if config_status.deepseek_ok %}<span class="badge text-bg-success rounded-pill">已加载</span>{% else %}<span class="badge text-bg-danger rounded-pill">缺失!</span>{% endif %}
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            支付宝 SDK
+            {% if config_status.alipay_sdk_ok %}<span class="badge text-bg-success rounded-pill">可用</span>{% else %}<span class="badge text-bg-danger rounded-pill">未找到!</span>{% endif %}
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            支付宝客户端
+             {% if config_status.alipay_client_ok %}<span class="badge text-bg-success rounded-pill">已初始化</span>{% else %}<span class="badge text-bg-danger rounded-pill">未初始化!</span>{% endif %}
+        </li>
+         <li class="list-group-item d-flex justify-content-between align-items-center">
+            重启密码
+             {% if config_status.restart_pass_ok %}<span class="badge text-bg-success rounded-pill">已设置</span>{% else %}<span class="badge text-bg-warning rounded-pill">未设置</span>{% endif %}
+        </li>
+    </ul>
+</div>
+
+</body>
+{% endblock %}

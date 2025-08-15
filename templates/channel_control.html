@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* 专属于此页面的CSS */
+    .terminal-body { background: #000; }
+    .page-title { font-family: var(--font-title); color: #00ffaa; text-shadow: 0 0 8px #00ffaa; letter-spacing: 2px; }
+    .page-subtitle { font-family: var(--font-mono); color: var(--text-secondary); }
+    .page-subtitle::before { content: 'SYSTEM_STATUS: '; color: var(--warning-glow); }
+
+    .control-card { background: rgba(10, 20, 15, 0.9); border: 1px solid rgba(0, 255, 170, 0.4); box-shadow: 0 0 20px rgba(0, 255, 170, 0.2); position: relative; overflow: hidden; backdrop-filter: blur(5px); }
+    .control-card-header { font-family: var(--font-mono); background: rgba(0, 255, 170, 0.1); border-bottom: 1px solid rgba(0, 255, 170, 0.4); text-transform: uppercase; }
+    .control-card-body { padding: 1.5rem; }
+
+    #voice-channels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+    .vc-card { background: var(--bg-dark-2); border: 1px solid var(--border-color); padding: 1rem; border-radius: 4px; transition: all 0.3s ease; }
+    .vc-card:hover { border-color: var(--secondary-glow); }
+    .vc-card-header { font-weight: bold; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem; padding-bottom: 0.5rem; }
+    .vc-member { display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .vc-member:last-child { border-bottom: none; }
+    .vc-member .avatar { width: 24px; height: 24px; border-radius: 50%; }
+    .vc-member .text-danger { color: var(--danger-glow) !important; }
+
+    .terminal-label { color: var(--secondary-glow); text-shadow: 0 0 3px var(--secondary-glow); }
+    .terminal-input { font-family: var(--font-mono); background-color: rgba(0,0,0,0.5) !important; border-color: rgba(0, 255, 170, 0.5) !important; color: #00ffaa !important; }
+    .terminal-input::placeholder { color: rgba(0, 255, 170, 0.4); }
+    .terminal-input:focus { box-shadow: 0 0 10px var(--secondary-glow); }
+</style>
+
+<body data-page-id="channel_control" data-guild-id="{{ guild.id }}" class="terminal-body">
+
+<div class="container-fluid p-4">
+    <h1 class="page-title"><i class="fa-solid fa-satellite"></i> 零号协议 // 信道控制 <span class="text-muted small">[{{ guild.name }}]</span></h1>
+    <p class="page-subtitle">> 实时监控与管理服务器通信信道...</p>
+
+    <div class="row">
+        <!-- 左侧：语音频道实时监控 -->
+        <div class="col-lg-7 mb-4">
+            <div class="control-card">
+                <div class="control-card-header text-danger">音频流监控</div>
+                <div class="control-card-body" id="voice-channels-grid" style="max-height: 75vh; overflow-y: auto;">
+                    <!-- JS会在这里填充语音频道 -->
+                    <p class="text-muted p-3">正在加载语音频道状态...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：欢迎系统设置 -->
+        <div class="col-lg-5 mb-4">
+            <div class="control-card">
+                <div class="control-card-header text-success">接入点配置 [欢迎系统]</div>
+                <div class="control-card-body">
+                    <form id="welcome-settings-form">
+                        <p class="text-muted small">> 频道链接配置</p>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label terminal-label">> 欢迎频道</label>
+                                <select class="form-select terminal-input" name="welcome_channel_id">
+                                    <option value="">-- 禁用 --</option>
+                                    {% for c in text_channels %}<option value="{{ c.id }}" {% if welcome_settings.channel_id|string == c.id|string %}selected{% endif %}>#{{ c.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label terminal-label">> 规则频道</label>
+                                <select class="form-select terminal-input" name="rules_channel_id">
+                                    <option value="">-- 无 --</option>
+                                    {% for c in text_channels %}<option value="{{ c.id }}" {% if welcome_settings.rules_channel_id|string == c.id|string %}selected{% endif %}>#{{ c.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                             <div class="col-md-6 mb-3">
+                                <label class="form-label terminal-label">> 身份组信息</label>
+                                <select class="form-select terminal-input" name="roles_info_channel_id">
+                                    <option value="">-- 无 --</option>
+                                    {% for c in text_channels %}<option value="{{ c.id }}" {% if welcome_settings.roles_info_channel_id|string == c.id|string %}selected{% endif %}>#{{ c.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                             <div class="col-md-6 mb-3">
+                                <label class="form-label terminal-label">> 认证频道</label>
+                                <select class="form-select terminal-input" name="verification_channel_id">
+                                     <option value="">-- 无 --</option>
+                                    {% for c in text_channels %}<option value="{{ c.id }}" {% if welcome_settings.verification_channel_id|string == c.id|string %}selected{% endif %}>#{{ c.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-text small mb-3">提示: 认证频道会自动被票据系统设置覆盖（如果已配置）。</div>
+                        <hr style="border-color: rgba(0, 255, 170, 0.3);">
+                        <p class="text-muted small">> 欢迎消息 Embed 内容</p>
+                        <div class="mb-3">
+                             <label class="form-label terminal-label">> 标题 (Title)</label>
+                             <input type="text" class="form-control terminal-input" name="title" value="{{ welcome_settings.title or '🎉 欢迎来到 {guild}! 🎉' }}" placeholder="例如: 欢迎来到 {guild}!">
+                        </div>
+                         <div class="mb-3">
+                             <label class="form-label terminal-label">> 描述 (Description)</label>
+                             <textarea class="form-control terminal-input" name="description" rows="8" placeholder="使用 {user} 和 {guild} 作为占位符。">{{ welcome_settings.description or '你好 {user}! 很高兴你能加入我们！\n\n👇 **开始之前，请务必查看:**\n- 服务器规则: <#{rules_channel_id}>\n- 身份组信息: <#{roles_info_channel_id}>\n- 认证申请: {verification_link}\n\n祝你玩得愉快！' }}</textarea>
+                             <div class="form-text small">
+                                 可用占位符: <code>{user}</code>, <code>{guild}</code>, <code><#{rules_channel_id}></code>, <code><#{roles_info_channel_id}></code>, <code>{verification_link}</code>
+                             </div>
+                        </div>
+                        <button type="submit" class="btn btn-outline-success w-100">保存欢迎设置</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initializeChannelControlPage === 'function') {
+            initializeChannelControlPage();
+        }
+    });
+</script>
+</body>
+{% endblock %}

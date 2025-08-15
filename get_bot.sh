@@ -1,15 +1,12 @@
 #!/bin/bash
 
 # ==============================================================================
-# == GJTeam Bot & Web Panel One-Line Installer for Ubuntu 22.04+
+# == GJTeam Bot & Web Panel - Ultimate One-Line Installer for Ubuntu 22.04+
 # ==
-# == 警告: 请务必从你信任的来源运行此脚本。
-# == 从互联网直接运行脚本可能存在安全风险。
+# == 运行: bash <(curl -fsSL https://your-domain.com/get_bot.sh)
 # ==============================================================================
 
 # --- 脚本设置 ---
-# set -e: 如果任何命令失败，立即退出脚本
-# set -o pipefail: 如果管道中的任何命令失败，整个管道被视为失败
 set -e
 set -o pipefail
 
@@ -17,29 +14,20 @@ set -o pipefail
 # 【【【你需要修改这里】】】
 GIT_REPO_URL="https://github.com/PuneetGOTO/WEBVABOT.git" # 你的公开Git仓库地址
 PROJECT_DIR_NAME="GJTEAM-BOT" # Git仓库克隆下来后的文件夹名
-BOT_USER="gjteambot" # 为机器人创建一个专用的、无密码的系统用户
+BOT_USER="gjteambot"
 PYTHON_COMMAND="python3"
-SERVICE_NAME="gjteam-bot" # systemd 服务的名称
+SERVICE_NAME="gjteam-bot"
 
 # --- 辅助函数 ---
-log_info() {
-    echo -e "\033[34m[INFO]\033[0m $1"
-}
-
-log_success() {
-    echo -e "\033[32m[SUCCESS]\033[0m $1"
-}
-
-log_warn() {
-    echo -e "\033[33m[WARNING]\033[0m $1"
-}
-
-log_error() {
-    echo -e "\033[31m[ERROR]\033[0m $1"
-}
+log_info() { echo -e "\033[34m[INFO]\033[0m $1"; }
+log_success() { echo -e "\033[32m[SUCCESS]\033[0m $1"; }
+log_warn() { echo -e "\033[33m[WARNING]\033[0m $1"; }
+log_error() { echo -e "\033[31m[ERROR]\033[0m $1"; }
+prompt_input() { read -p "$(echo -e "\033[33m[INPUT]\033[0m $1: ")"; }
+prompt_secret() { read -sp "$(echo -e "\033[33m[INPUT]\033[0m $1 (输入将隐藏): ")"; echo; }
 
 # --- 脚本开始 ---
-log_info "GJTeam Bot & Web Panel 自动配置脚本启动..."
+log_info "GJTeam Bot & Web Panel 终极一键部署脚本启动..."
 
 # 1. 检查权限
 if [ "$(id -u)" -ne 0 ]; then
@@ -47,93 +35,178 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# 2. 获取用户输入 (非敏感信息)
-log_info "我们需要一些信息来配置 Nginx 反向代理..."
-read -p "请输入您将用于访问Web面板的域名 (例如: bot.example.com): " DOMAIN_NAME
-if [ -z "$DOMAIN_NAME" ]; then
-    log_error "域名不能为空。"
+# 2. 【增强】自动更新系统
+log_info "正在更新系统包... 这可能需要几分钟。"
+apt-get update
+apt-get upgrade -y
+log_success "系统更新完成。"
+
+# 3. 【增强】交互式获取所有配置信息
+log_info "我们需要一些信息来完成所有配置..."
+echo "------------------------------------------------------------"
+prompt_input "请输入您用于访问Web面板的域名 (例如: bot.example.com)"
+DOMAIN_NAME="$REPLY"
+prompt_input "请输入您的Discord机器人Token"
+DISCORD_BOT_TOKEN="$REPLY"
+prompt_input "请输入机器人重启密码 (/管理 restart)"
+BOT_RESTART_PASSWORD="$REPLY"
+prompt_input "请输入您的DeepSeek API Key"
+DEEPSEEK_API_KEY="$REPLY"
+prompt_input "请输入您的支付宝应用APP ID"
+ALIPAY_APP_ID="$REPLY"
+prompt_input "请输入支付宝公钥内容 (用于SDK)"
+ALIPAY_PUBLIC_KEY_FOR_SDK_CONTENT="$REPLY"
+prompt_input "请输入支付宝公KEY内容 (用于回调验签)"
+ALIPAY_PUBLIC_KEY_CONTENT_FOR_CALLBACK_VERIFY="$REPLY"
+prompt_secret "请输入Web面板超级管理员密码"
+WEB_ADMIN_PASSWORD="$REPLY"
+prompt_input "请输入您的Discord OAuth2应用的Client ID"
+DISCORD_CLIENT_ID="$REPLY"
+prompt_input "请输入您的Discord OAuth2应用的Client Secret"
+DISCORD_CLIENT_SECRET="$REPLY"
+prompt_input "请输入接收通知的Discord频道ID (可选, 可留空)"
+RECHARGE_ADMIN_NOTIFICATION_CHANNEL_ID="$REPLY"
+log_info "请输入您的支付宝应用私钥，然后按 Ctrl+D 结束输入："
+ALIPAY_PRIVATE_KEY_CONTENT=$(cat)
+echo "------------------------------------------------------------"
+log_info "信息收集完成。"
+
+# 检查关键信息是否为空
+if [ -z "$DOMAIN_NAME" ] || [ -z "$DISCORD_BOT_TOKEN" ] || [ -z "$WEB_ADMIN_PASSWORD" ]; then
+    log_error "域名、机器人Token和Web面板密码是必填项。安装中止。"
     exit 1
 fi
 
-# 3. 更新系统并安装系统级依赖
-log_info "正在更新系统包并安装必要的依赖 (这可能需要几分钟)..."
-apt-get update
-apt-get install -y git python3-pip python3-venv nginx ffmpeg build-essential
-
+# 4. 安装系统级依赖
+log_info "正在安装必要的系统依赖..."
+apt-get install -y git python3-pip python3-venv nginx ffmpeg build-essential certbot python3-certbot-nginx
 log_success "系统依赖安装完成。"
 
-# 4. 创建专用的系统用户 (安全最佳实践)
+# 5. 创建专用用户
 if id "$BOT_USER" &>/dev/null; then
-    log_info "用户 '$BOT_USER' 已存在，跳过创建。"
+    log_info "用户 '$BOT_USER' 已存在。"
 else
-    log_info "正在为机器人创建专用的系统用户 '$BOT_USER'..."
+    log_info "正在创建专用的系统用户 '$BOT_USER'..."
     useradd -r -m -d /home/$BOT_USER -s /bin/bash $BOT_USER
     log_success "用户 '$BOT_USER' 创建成功。"
 fi
 
-# 5. 克隆项目代码
+# 6. 克隆项目代码
 INSTALL_DIR="/home/$BOT_USER/$PROJECT_DIR_NAME"
 log_info "正在从 $GIT_REPO_URL 克隆项目到 $INSTALL_DIR..."
-# 如果目录已存在，先删除旧的
 if [ -d "$INSTALL_DIR" ]; then
     log_warn "发现旧的安装目录，将进行备份并重新克隆..."
     mv "$INSTALL_DIR" "${INSTALL_DIR}.bak.$(date +%s)"
 fi
-# 以新用户身份克隆
 su - $BOT_USER -c "git clone $GIT_REPO_URL $INSTALL_DIR"
 log_success "项目代码克隆成功。"
 
-# 6. 设置 Python 虚拟环境并安装依赖
+# 7. 设置 Python 虚拟环境
 log_info "正在设置 Python 虚拟环境并安装依赖..."
 su - $BOT_USER -c "cd $INSTALL_DIR && $PYTHON_COMMAND -m venv venv"
 su - $BOT_USER -c "cd $INSTALL_DIR && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
 log_success "Python 依赖安装完成。"
 
-# 7. 创建 .env 配置文件模板
-log_info "正在创建 .env 配置文件模板..."
-# 注意: 我们不在这里要求用户输入敏感信息，以防它们被记录在历史中。
-# 我们只生成一个模板，并提醒用户去编辑它。
+# 8. 【增强】自动生成 .env 和私钥文件
+log_info "正在根据您的输入自动生成配置文件..."
+# 默认使用 http，稍后如果SSL成功会自动更新
+URL_SCHEME="http"
+ALIPAY_NOTIFY_URL="${URL_SCHEME}://${DOMAIN_NAME}/alipay/notify"
+DISCORD_REDIRECT_URI="${URL_SCHEME}://${DOMAIN_NAME}/callback"
+
+# 写入私钥文件
+echo "$ALIPAY_PRIVATE_KEY_CONTENT" > $INSTALL_DIR/alipay_private_key.pem
+
+# 写入 .env 文件
 cat > $INSTALL_DIR/.env <<EOF
-# .env - 请务必填写所有标记为【必填】的项
-
-# --- Discord Bot ---
-DISCORD_BOT_TOKEN=【必填】你的Discord机器人Token
-BOT_RESTART_PASSWORD=【必填】设置一个用于/管理 restart的复杂密码
-
-# --- DeepSeek AI ---
-DEEPSEEK_API_KEY=【必填】你的DeepSeek API Key
-
-# --- Alipay (沙箱或生产环境) ---
-ALIPAY_APP_ID=【必填】你的支付宝应用APP ID
-ALIPAY_PRIVATE_KEY_PATH=$INSTALL_DIR/alipay_private_key.pem  # 私钥文件路径，脚本已为你设置好
-ALIPAY_PUBLIC_KEY_FOR_SDK_CONTENT=【必填】你的支付宝公钥内容(Base64字符串)
-ALIPAY_PUBLIC_KEY_CONTENT_FOR_CALLBACK_VERIFY=【必填】用于回调验签的支付宝公钥内容(Base64字符串)
-ALIPAY_NOTIFY_URL=http://$DOMAIN_NAME/alipay/notify # 回调URL，脚本已为你生成
-
-# --- Web Panel ---
-WEB_ADMIN_PASSWORD=【必填】设置一个用于登录Web面板的超级管理员密码
-DISCORD_CLIENT_ID=【必填】你的Discord OAuth2应用的Client ID
-DISCORD_CLIENT_SECRET=【必填】你的Discord OAuth2应用的Client Secret
-DISCORD_REDIRECT_URI=http://$DOMAIN_NAME/callback # OAuth2回调URL，脚本已为你生成
-
-# --- Bot 功能配置 ---
-RECHARGE_ADMIN_NOTIFICATION_CHANNEL_ID=【可选】用于接收AI上报和充值通知的Discord频道ID
-MIN_RECHARGE_AMOUNT=1.0
-MAX_RECHARGE_AMOUNT=10000.0
+# This file is auto-generated by the installation script.
+DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+BOT_RESTART_PASSWORD=${BOT_RESTART_PASSWORD}
+DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+ALIPAY_APP_ID=${ALIPAY_APP_ID}
+ALIPAY_PRIVATE_KEY_PATH=${INSTALL_DIR}/alipay_private_key.pem
+ALIPAY_PUBLIC_KEY_FOR_SDK_CONTENT=${ALIPAY_PUBLIC_KEY_FOR_SDK_CONTENT}
+ALIPAY_PUBLIC_KEY_CONTENT_FOR_CALLBACK_VERIFY=${ALIPAY_PUBLIC_KEY_CONTENT_FOR_CALLBACK_VERIFY}
+ALIPAY_NOTIFY_URL=${ALIPAY_NOTIFY_URL}
+WEB_ADMIN_PASSWORD=${WEB_ADMIN_PASSWORD}
+DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI}
+RECHARGE_ADMIN_NOTIFICATION_CHANNEL_ID=${RECHARGE_ADMIN_NOTIFICATION_CHANNEL_ID}
 RECHARGE_CONVERSION_RATE=100
 ECONOMY_DEFAULT_BALANCE=100
+MIN_RECHARGE_AMOUNT=1.0
+MAX_RECHARGE_AMOUNT=10000.0
 EOF
 
-# 创建一个空的私钥文件，并提示用户粘贴内容
-touch $INSTALL_DIR/alipay_private_key.pem
-# 设置正确的文件所有权
 chown -R $BOT_USER:$BOT_USER /home/$BOT_USER
-chmod -R 755 /home/$BOT_USER
+chmod 600 $INSTALL_DIR/.env # 保护敏感文件
+chmod 600 $INSTALL_DIR/alipay_private_key.pem
+log_success "配置文件和私钥文件已安全生成。"
 
-log_success ".env 模板和私钥文件已创建。"
+# 9. 配置 Nginx
+log_info "正在配置 Nginx 作为反向代理..."
+# 先创建HTTP配置
+cat > /etc/nginx/sites-available/$SERVICE_NAME <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN_NAME;
 
-# 8. 创建并配置 systemd 服务
-log_info "正在创建 systemd 服务以确保机器人能开机自启并稳定运行..."
+    root /var/www/html; # A default root for certbot challenges
+    index index.html index.htm;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /my-custom-socket-path {
+        proxy_pass http://127.0.0.1:5000/my-custom-socket-path;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+    }
+    
+    location /alipay/notify {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+
+    location /static/ {
+        alias ${INSTALL_DIR}/static/;
+        expires 1d;
+        add_header Cache-Control "public";
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/$SERVICE_NAME /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+systemctl restart nginx
+log_success "Nginx (HTTP) 配置完成。"
+
+# 10. 【增强】自动申请 SSL 证书
+log_info "正在尝试为 $DOMAIN_NAME 自动申请 SSL 证书..."
+# 使用 --non-interactive 标志自动处理，提供邮箱并自动同意条款
+# --redirect 会自动将 HTTP 重定向到 HTTPS
+if certbot --nginx --non-interactive --agree-tos -d $DOMAIN_NAME -m admin@$DOMAIN_NAME --redirect; then
+    log_success "SSL 证书申请并配置成功！"
+    # 更新 .env 文件中的 URL 为 https
+    log_info "正在更新配置文件中的 URL 为 HTTPS..."
+    sed -i 's|http://|https://|g' $INSTALL_DIR/.env
+    log_success "URL 更新完成。"
+else
+    log_warn "SSL 证书自动申请失败。可能是DNS记录尚未生效，或达到了Let's Encrypt的速率限制。"
+    log_warn "系统将继续以 HTTP 模式运行。你可以稍后手动运行 'sudo certbot --nginx -d $DOMAIN_NAME' 重试。"
+fi
+
+# 11. 创建并配置 systemd 服务
+log_info "正在创建 systemd 服务..."
 cat > /etc/systemd/system/$SERVICE_NAME.service <<EOF
 [Unit]
 Description=GJTeam Discord Bot and Web Panel
@@ -143,13 +216,6 @@ After=network.target
 User=$BOT_USER
 Group=$BOT_USER
 WorkingDirectory=$INSTALL_DIR
-# 使用 gunicorn 启动 Flask 应用，它比 Flask 自带的服务器更适合生产环境
-# -w 4: 启动4个工作进程
-# -k eventlet: 使用 eventlet 作为工作模式，这对于 Socket.IO 至关重要
-# --bind 0.0.0.0:5000: 绑定到5000端口
-# role_manager_bot:web_app: 指向 role_manager_bot.py 文件中的 web_app 对象
-# 【【【重要修改】】】
-# 你的主脚本同时运行机器人和Web服务器，所以我们直接用python启动它
 ExecStart=$INSTALL_DIR/venv/bin/python3 $INSTALL_DIR/role_manager_bot.py
 Restart=always
 RestartSec=10
@@ -160,92 +226,26 @@ EOF
 
 log_success "systemd 服务文件创建成功。"
 
-# 9. 配置 Nginx 作为反向代理
-log_info "正在配置 Nginx 作为 Web 面板的反向代理..."
-cat > /etc/nginx/sites-available/$SERVICE_NAME <<EOF
-server {
-    listen 80;
-    server_name $DOMAIN_NAME;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # 这是 Socket.IO 的关键配置
-    location /my-custom-socket-path {
-        proxy_pass http://127.0.0.1:5000/my-custom-socket-path;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-    }
-    
-    # 这是支付宝回调的路径，确保它能被访问
-    location /alipay/notify {
-        proxy_pass http://127.0.0.1:8080; # 注意：这里端口是8080，因为你的机器人里是这样设置的
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-    }
-}
-EOF
-
-# 启用新的 Nginx 配置
-ln -sf /etc/nginx/sites-available/$SERVICE_NAME /etc/nginx/sites-enabled/
-# 删除默认的 Nginx 欢迎页（如果存在）
-rm -f /etc/nginx/sites-enabled/default
-
-# 检查 Nginx 配置语法
-if nginx -t; then
-    log_success "Nginx 配置语法正确。"
-else
-    log_error "Nginx 配置语法错误，请检查 /etc/nginx/sites-available/$SERVICE_NAME 文件。"
-    exit 1
-fi
-
-# 10. 配置防火墙
-log_info "正在配置防火墙 (UFW)..."
-ufw allow 'OpenSSH'
-ufw allow 'Nginx Full' # 允许 HTTP 和 HTTPS
-ufw --force enable
-log_success "防火墙配置完成。"
-
-# 11. 重新加载服务并启动
-log_info "正在重新加载 systemd 和 Nginx，并启动机器人服务..."
+# 12. 最终启动
+log_info "正在启用并启动机器人服务..."
 systemctl daemon-reload
-systemctl restart nginx
-# 我们先不启动机器人服务，因为用户需要先填写 .env 文件
 systemctl enable $SERVICE_NAME
+systemctl start $SERVICE_NAME
 
-log_success "所有服务配置完成！"
+log_success "机器人服务已启动！"
 
 # --- 最终说明 ---
-echo -e "\n\033[1;32m========================= 安装完成 =========================\033[0m"
-echo -e "\n\033[1;33m在你启动机器人之前，必须完成以下关键步骤：\033[0m"
+echo -e "\n\033[1;32m========================= 部署完成！ =========================\033[0m"
 echo ""
-echo -e "1. \033[1m编辑配置文件\033[0m: 使用 nano 或其他编辑器打开下面的文件，并填入所有【必填】的密钥和Token："
-echo -e "   \033[36msudo nano $INSTALL_DIR/.env\033[0m"
-echo ""
-echo -e "2. \033[1m配置支付宝私钥\033[0m: 将你的支付宝应用私钥内容粘贴到下面的文件中："
-echo -e "   \033[36msudo nano $INSTALL_DIR/alipay_private_key.pem\033[0m"
-echo ""
-echo -e "3. \033[1m启动机器人服务\033[0m: 完成以上配置后，运行以下命令来启动机器人："
-echo -e "   \033[36msudo systemctl start $SERVICE_NAME\033[0m"
-echo ""
-echo -e "4. \033[1m设置DNS\033[0m: 确保你的域名 \033[1m$DOMAIN_NAME\033[0m 的 A 记录指向你服务器的IP地址。"
+echo -e "你的机器人和Web面板现在应该正在运行中！"
+echo -e "你可以通过以下地址访问你的Web面板："
+echo -e "   \033[1;36mhttps://$DOMAIN_NAME\033[0m"
 echo ""
 echo -e "\033[1;34m常用命令:\033[0m"
-echo -e "  - \033[1m查看机器人日志\033[0m: \033[36msudo journalctl -u $SERVICE_NAME -f\033[0m"
+echo -e "  - \033[1m查看机器人实时日志\033[0m: \033[36msudo journalctl -u $SERVICE_NAME -f\033[0m"
 echo -e "  - \033[1m重启机器人\033[0m: \033[36msudo systemctl restart $SERVICE_NAME\033[0m"
 echo -e "  - \033[1m停止机器人\033[0m: \033[36msudo systemctl stop $SERVICE_NAME\033[0m"
+echo -e "  - \033[1m编辑配置文件\033[0m: \033[36msudo nano $INSTALL_DIR/.env\033[0m (修改后需重启)"
 echo ""
-echo -e "\033[1;31m强烈建议\033[0m: 为你的域名配置 SSL (HTTPS)。你可以使用 Certbot 轻松完成："
-echo -e "   1. \033[36msudo apt install certbot python3-certbot-nginx\033[0m"
-echo -e "   2. \033[36msudo certbot --nginx -d $DOMAIN_NAME\033[0m"
-echo -e "   (在配置SSL后，记得将.env文件中的回调URL从 http 修改为 https)"
-echo ""
-
+echo -e "如果遇到任何问题，请使用 'journalctl' 命令查看日志来排查。"
 echo -e "\033[1;32m============================================================\033[0m"

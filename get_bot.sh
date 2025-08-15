@@ -15,7 +15,7 @@ set -o pipefail
 
 # --- 变量定义 ---
 # 【【【你需要修改这里】】】
-GIT_REPO_URL="https://github.com/your-username/your-bot-repo.git" # 你的公开Git仓库地址
+GIT_REPO_URL="https://github.com/PuneetGOTO/WEBVABOT.git" # 你的公开Git仓库地址
 PROJECT_DIR_NAME="GJTEAM-BOT" # Git仓库克隆下来后的文件夹名
 BOT_USER="gjteambot" # 为机器人创建一个专用的、无密码的系统用户
 PYTHON_COMMAND="python3"
@@ -247,4 +247,5 @@ echo -e "   1. \033[36msudo apt install certbot python3-certbot-nginx\033[0m"
 echo -e "   2. \033[36msudo certbot --nginx -d $DOMAIN_NAME\033[0m"
 echo -e "   (在配置SSL后，记得将.env文件中的回调URL从 http 修改为 https)"
 echo ""
+
 echo -e "\033[1;32m============================================================\033[0m"

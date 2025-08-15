@@ -1,0 +1,18 @@
+# requirements.txt
+
+# Core Discord & Web Framework
+discord.py>=2.3.2
+Flask>=3.0.0
+Flask-SocketIO>=5.3.6
+eventlet>=0.33.3
+gunicorn>=21.2.0
+
+# Dependencies from your script
+python-dotenv>=1.0.0
+requests>=2.31.0
+pycryptodome>=3.20.0
+alipay-sdk-python>=3.1.2
+qrcode[pil]>=7.4.2
+yt-dlp>=2023.12.30
+aiohttp>=3.9.1
+werkzeug>=3.0.1

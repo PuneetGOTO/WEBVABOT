@@ -7809,7 +7809,8 @@ async def perform_action(guild_id, action, data, user_session):
         'kick': 'tab_members', 'ban': 'tab_members', 'unmute': 'page_moderation', 'delete_role': 'tab_roles',
         'ai_exempt_remove_user': 'page_audit_core',
         'ai_exempt_remove_channel': 'page_audit_core',
-        'ai_dep_channel_remove': 'page_settings'
+        'ai_dep_channel_remove': 'page_settings',
+        'kb_remove': 'tab_ai_faq'
     }
     
     # 提取基础动作名 (例如 'action/vc_mute' -> 'vc_mute')
@@ -7864,6 +7865,15 @@ async def perform_action(guild_id, action, data, user_session):
             await role.delete(reason=reason)
             return jsonify(status="success", message=f"已删除身份组 {role.name}。")
 
+        elif base_action == 'kb_remove':
+            entry_order_to_remove = target_id # target_id 就是前端传来的序号
+            success = database.db_remove_knowledge_base_entry_by_order(guild.id, entry_order_to_remove)
+            if success:
+                return jsonify(status="success", message=f"已成功删除知识库条目 #{entry_order_to_remove}。")
+            else:
+                return jsonify(status="error", message=f"删除知识库条目 #{entry_order_to_remove} 失败，可能序号无效。"), 400
+
+        
         if base_action == 'ai_exempt_remove_user':
             exempt_users_from_ai_check.discard(target_id)
             print(f"[AI豁免] 管理员 {moderator_display_name} 从Web面板移除了用户 {target_id} 的豁免。")

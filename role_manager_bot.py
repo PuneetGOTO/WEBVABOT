@@ -1557,7 +1557,7 @@ async def on_ready():
     load_bot_whitelist_from_file() # 加载机器人白名单
     load_server_settings()
     if ECONOMY_ENABLED:
-   	   load_economy_data() 
+                    load_economy_data()
     
 
     # ===================================================================
@@ -6038,6 +6038,20 @@ if FLASK_AVAILABLE:
                     })
             return jsonify(channels=guild_dep_channels)
             
+        
+        # --- AI 直接对话频道数据 ---
+        if data_type == 'ai_dep_channels':
+            guild_dep_channels = []
+            for ch_id, config in ai_dep_channels_config.items():
+                channel = bot.get_channel(ch_id)
+                if channel and channel.guild.id == guild_id:
+                    guild_dep_channels.append({
+                        'id': str(ch_id), 
+                        'name': channel.name, 
+                        'model': config.get("model", "未知")
+                    })
+            return jsonify(channels=guild_dep_channels)
+        
         # --- 如果没有匹配的数据类型 ---
         return jsonify(status="error", message=f"无效的数据类型请求: {data_type}"), 400
     
@@ -7794,7 +7808,8 @@ async def perform_action(guild_id, action, data, user_session):
         'vc_deafen': 'page_channel_control', 'vc_undeafen': 'page_channel_control', 
         'kick': 'tab_members', 'ban': 'tab_members', 'unmute': 'page_moderation', 'delete_role': 'tab_roles',
         'ai_exempt_remove_user': 'page_audit_core',
-        'ai_exempt_remove_channel': 'page_audit_core'
+        'ai_exempt_remove_channel': 'page_audit_core',
+        'ai_dep_channel_remove': 'page_settings'
     }
     
     # 提取基础动作名 (例如 'action/vc_mute' -> 'vc_mute')
@@ -7860,6 +7875,17 @@ async def perform_action(guild_id, action, data, user_session):
             print(f"[AI豁免] 管理员 {moderator_display_name} 从Web面板移除了频道 #{channel.name if channel else target_id} 的豁免。")
             return jsonify(status="success", message=f"已从AI豁免列表移除频道 {target_id}。")
 
+        if base_action == 'ai_dep_channel_remove':
+            channel_id_to_remove = int(target_id)
+            if channel_id_to_remove in ai_dep_channels_config:
+                del ai_dep_channels_config[channel_id_to_remove]
+                save_server_settings()
+                channel_name = guild.get_channel(channel_id_to_remove)
+                print(f"[AI Settings] 管理员 {moderator_display_name} 从Web面板移除了AI频道 #{channel_name if channel_name else target_id}。")
+                return jsonify(status="success", message=f"已成功移除AI频道设置。")
+            else:
+                return jsonify(status="error", message="该频道不是AI频道。"), 404
+        
         # --- 需要成员对象的操作 ---
         try:
             member = await guild.fetch_member(target_id)
@@ -8230,6 +8256,16 @@ async def handle_form_submission(guild_id, data, user_session):
             print(f"[AI豁免] 管理员 {moderator_display_name} 从Web面板添加了频道 #{channel.name}({channel_id}) 到豁免列表。")
             return jsonify(status="success", message=f"已将频道 #{channel.name} 添加到AI审查豁免列表。")
 
+        # --- AI对话频道表单 ---
+        elif form_id == 'ai-dep-form':
+            is_authed, error = check_auth(guild_id, 'page_settings')
+            if not is_authed: return jsonify(status="error", message=error[0]), error[1]
+            channel_id = data.get('channel_id')
+            if not channel_id or not channel_id.isdigit(): return jsonify(status="error", message="无效的频道ID。"), 400
+            ai_dep_channels_config[int(channel_id)] = {"model": DEFAULT_AI_DIALOGUE_MODEL, "system_prompt": None, "history_key": f"ai_dep_channel_{channel_id}"}
+            save_server_settings()
+            return jsonify(status="success", message="AI频道设置已更新。")
+        
         # --- 未知表单处理 ---
         else:
             return jsonify(status="error", message=f"未知的表单提交: {form_id}"), 400

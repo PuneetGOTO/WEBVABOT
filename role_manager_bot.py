@@ -2013,18 +2013,19 @@ async def handle_ai_dialogue(message: discord.Message, is_private_chat: bool = F
     if system_prompt_for_api: # 使用从DEP频道配置中获取的 system_prompt_for_api
         effective_system_prompt = system_prompt_for_api
 
-    # 【【【核心修复 V2：使用示例进行更强的指令训练】】】
-    # 指导AI如何推理和应用知识库
+    # 【【【核心修复 V3：使用通用化示例，防止跨服务器信息泄露】】】
+    # 指导AI如何推理和应用知识库，而不泄露具体信息
     instructional_prompt = (
         "Your primary role is a helpful server assistant. You must follow these rules strictly:\n"
         "1. User prompts will be prefixed with '[提问者: DisplayName (ID: 1234567890)]'. This prefix provides the context of who is asking.\n"
         "2. You MUST analyze the user's ID from the prefix.\n"
         "3. If the user's ID matches an ID mentioned in the server knowledge base, you MUST treat the information in that knowledge base entry as facts ABOUT THE CURRENT USER.\n"
         "4. Your goal is to provide personalized answers by connecting the user's identity to the knowledge base.\n\n"
-        "--- EXAMPLE ---\n"
-        "Knowledge Base contains: '服务器主人ID:955813116426457178'\n"
-        "User asks: '[提问者: Puneet (ID: 955813116426457178)]\\n\\n我是谁?'\n"
-        "Your CORRECT response should be: '您是服务器的主人。'\n"
+        "--- GENERIC EXAMPLE OF YOUR LOGIC ---\n"
+        "Knowledge Base contains: 'VIP Member ID: 123456789012345678'\n"
+        "User asks: '[提问者: SomeUser (ID: 123456789012345678)]\\n\\nDo I have any special roles?'\n"
+        "Your CORRECT thought process: The user's ID matches the ID in the knowledge base. The knowledge base says this ID belongs to a VIP Member.\n"
+        "Your CORRECT response should be: 'Yes, according to my records, you are a VIP Member.'\n"
         "--- END EXAMPLE ---"
     )
     if effective_system_prompt:

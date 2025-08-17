@@ -136,6 +136,28 @@
                     </div>
                 </div>
                 {% endif %}
+                <!-- 【新增功能】AI频道管理 -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header"><i class="fa-solid fa-brain"></i> AI Direct Dialogue Channels</div>
+                        <div class="card-body">
+                            <form id="ai-dep-form" class="input-group">
+                                <select class="form-select" name="channel_id" required>
+                                    <option value="" disabled selected>选择一个频道设为AI频道...</option>
+                                    {% for c in text_channels %}
+                                    <option value="{{ c.id }}">#{{ c.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-success">添加</button>
+                            </form>
+                            <hr>
+                            <p class="text-muted small">当前已设置的AI频道:</p>
+                            <ul class="list-group" id="ai-dep-list" style="max-height: 200px; overflow-y: auto;">
+                                <li class="list-group-item text-muted">正在加载...</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -363,9 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 这是一个简化的方式，理想情况下应该用一个专用的API
-        // 但这里我们模拟调用斜杠命令
-        // 为了让这个能工作，你需要确保 session 和权限检查对这个API也有效
         try {
             const data = await apiRequest(`/api/guild/${GUILD_ID}/action/deploy_ticket_panel`, {
                 method: 'POST',
@@ -380,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 为页面上其他表单添加通用提交逻辑
-    ['temp-vc-settings-form', 'bot-whitelist-form'].forEach(formId => {
+    ['temp-vc-settings-form', 'bot-whitelist-form', 'ai-dep-form'].forEach(formId => {
         const form = document.getElementById(formId);
         if (form) {
             form.addEventListener('submit', async (e) => {
@@ -396,14 +415,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         body: JSON.stringify(payload)
                     });
                     alert(data.message);
-                    if (data.status === 'success' && formId === 'bot-whitelist-form') {
-                         // 刷新白名单列表
-                         document.getElementById('bot-whitelist').innerHTML = '<li class="list-group-item text-muted">正在刷新...</li>';
-                         apiRequest(`/api/guild/${GUILD_ID}/data/bot_whitelist`).then(data => {
-                             const list = document.getElementById('bot-whitelist');
-                             if (!list) return;
-                             list.innerHTML = !data.whitelist?.length ? '<li class="list-group-item text-muted">白名单是空的。</li>' : data.whitelist.map(bot => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${bot.id}">${bot.name} (<code>${bot.id}</code>)<button class="btn btn-danger btn-sm action-btn" data-action="action/bot_whitelist_remove" data-target-id="${bot.id}"><i class="fa-solid fa-trash"></i></button></li>`).join('');
-                         });
+                    if (data.status === 'success') {
+                        // 提交成功后刷新对应列表
+                        if (formId === 'bot-whitelist-form') {
+                             apiRequest(`/api/guild/${GUILD_ID}/data/bot_whitelist`).then(data => {
+                                 const list = document.getElementById('bot-whitelist');
+                                 if (!list) return;
+                                 list.innerHTML = !data.whitelist?.length ? '<li class="list-group-item text-muted">白名单是空的。</li>' : data.whitelist.map(bot => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${bot.id}">${bot.name} (<code>${bot.id}</code>)<button class="btn btn-danger btn-sm action-btn" data-action="action/bot_whitelist_remove" data-target-id="${bot.id}"><i class="fa-solid fa-trash"></i></button></li>`).join('');
+                             });
+                        } else if (formId === 'ai-dep-form') {
+                             apiRequest(`/api/guild/${GUILD_ID}/data/ai_dep_channels`).then(data => {
+                                const list = document.getElementById('ai-dep-list');
+                                if (!list) return;
+                                list.innerHTML = !data.channels?.length ? '<li class="list-group-item text-muted">未设置AI频道。</li>' : data.channels.map(ch => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${ch.id}"><span>#${ch.name} (模型: ${ch.model})</span><button class="btn btn-danger btn-sm action-btn" data-action="action/ai_dep_channel_remove" data-target-id="${ch.id}"><i class="fa-solid fa-trash"></i></button></li>`).join('');
+                             });
+                        }
                     }
                 } catch (error) {}
             });

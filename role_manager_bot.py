@@ -2013,12 +2013,19 @@ async def handle_ai_dialogue(message: discord.Message, is_private_chat: bool = F
     if system_prompt_for_api: # 使用从DEP频道配置中获取的 system_prompt_for_api
         effective_system_prompt = system_prompt_for_api
 
-    # 【【【核心修复：添加新的指令】】】
-    # 指导AI如何理解我们注入的上下文
+    # 【【【核心修复 V2：使用示例进行更强的指令训练】】】
+    # 指导AI如何推理和应用知识库
     instructional_prompt = (
-        "User prompts will be prefixed with '[提问者: DisplayName (ID: 1234567890)]'. "
-        "You MUST pay attention to the user's ID and name from this prefix. "
-        "Use this information to cross-reference with the server knowledge base to provide personalized and accurate answers."
+        "Your primary role is a helpful server assistant. You must follow these rules strictly:\n"
+        "1. User prompts will be prefixed with '[提问者: DisplayName (ID: 1234567890)]'. This prefix provides the context of who is asking.\n"
+        "2. You MUST analyze the user's ID from the prefix.\n"
+        "3. If the user's ID matches an ID mentioned in the server knowledge base, you MUST treat the information in that knowledge base entry as facts ABOUT THE CURRENT USER.\n"
+        "4. Your goal is to provide personalized answers by connecting the user's identity to the knowledge base.\n\n"
+        "--- EXAMPLE ---\n"
+        "Knowledge Base contains: '服务器主人ID:955813116426457178'\n"
+        "User asks: '[提问者: Puneet (ID: 955813116426457178)]\\n\\n我是谁?'\n"
+        "Your CORRECT response should be: '您是服务器的主人。'\n"
+        "--- END EXAMPLE ---"
     )
     if effective_system_prompt:
         effective_system_prompt = f"{instructional_prompt}\n\n{effective_system_prompt}"

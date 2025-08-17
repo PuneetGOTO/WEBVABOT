@@ -258,7 +258,17 @@ function initializeGuildPage() {
         },
         kb: (data) => {
             const list = document.getElementById('kb-list'); if(!list) return;
-            list.innerHTML = !data.kb?.length ? '<li class="list-group-item text-muted">知识库是空的。</li>' : data.kb.map((entry, index) => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${index + 1}"><span class="kb-entry-text" title='${entry.replace(/'/g, "\\'")}'>${entry.substring(0, 80)}...</span><button class="btn btn-danger btn-sm action-btn" data-action="data/kb" data-target-id="${index + 1}" data-sub-action="remove"><i class="fa-solid fa-trash"></i></button></li>`).join('');
+            list.innerHTML = !data.kb?.length 
+                ? '<li class="list-group-item text-muted">知识库是空的。</li>' 
+                : data.kb.map((entry, index) => `
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${index + 1}">
+                        <span class="kb-entry-text" title='${entry.replace(/'/g, "\\'")}'>${entry.substring(0, 80)}...</span>
+                        
+                        <!-- 【核心修复】修改了 data-action，移除了 data-sub-action -->
+                        <button class="btn btn-danger btn-sm action-btn" data-action="action/kb_remove" data-target-id="${index + 1}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </li>`).join('');
         },
         faq: (data) => {
             const accordion = document.getElementById('faq-accordion'); if (!accordion) return;

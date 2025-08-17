@@ -2012,7 +2012,20 @@ async def handle_ai_dialogue(message: discord.Message, is_private_chat: bool = F
     effective_system_prompt = ""
     if system_prompt_for_api: # 使用从DEP频道配置中获取的 system_prompt_for_api
         effective_system_prompt = system_prompt_for_api
-    
+
+    # 【【【核心修复：添加新的指令】】】
+    # 指导AI如何理解我们注入的上下文
+    instructional_prompt = (
+        "User prompts will be prefixed with '[提问者: DisplayName (ID: 1234567890)]'. "
+        "You MUST pay attention to the user's ID and name from this prefix. "
+        "Use this information to cross-reference with the server knowledge base to provide personalized and accurate answers."
+    )
+    if effective_system_prompt:
+        effective_system_prompt = f"{instructional_prompt}\n\n{effective_system_prompt}"
+    else:
+        effective_system_prompt = instructional_prompt
+    # 【【【修复结束】】】
+
     if knowledge_base_content: # 将知识库内容附加到（或构成）系统提示
         if effective_system_prompt:
             effective_system_prompt += knowledge_base_content
@@ -2027,7 +2040,9 @@ async def handle_ai_dialogue(message: discord.Message, is_private_chat: bool = F
         if msg_entry.get("role") in ["user", "assistant"] and "content" in msg_entry and msg_entry.get("content") is not None:
             api_messages.append({"role": msg_entry["role"], "content": msg_entry["content"]})
     
-    api_messages.append({"role": "user", "content": user_prompt_text})
+    # --- 【核心修复：增强用户提问，注入上下文信息】 ---
+    enhanced_user_prompt = f"[提问者: {message.author.display_name} (ID: {message.author.id})]\n\n{user_prompt_text}"
+    api_messages.append({"role": "user", "content": enhanced_user_prompt})
 
     # 更新的 print 语句
     print(f"[AI DIALOGUE HANDLER] Processing for {('Private' if is_private_chat else 'DEP')} Channel {channel.id}, User {user.id}, Model {dialogue_model}, HistKey {history_key}, SysP: {effective_system_prompt != ''}")
@@ -2046,6 +2061,7 @@ async def handle_ai_dialogue(message: discord.Message, is_private_chat: bool = F
             return
 
         if response_embed_text:
+            # 【重要】历史记录中仍然只保存原始的用户问题，避免上下文信息污染历史记录
             history_deque.append({"role": "user", "content": user_prompt_text})
             if final_content_hist is not None:
                 history_deque.append({"role": "assistant", "content": final_content_hist})

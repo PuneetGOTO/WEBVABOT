@@ -516,7 +516,7 @@ function initializeSettingsPage() {
         ai_dep_channels: (data) => {
             const list = document.getElementById('ai-dep-list');
             if (!list) return;
-            list.innerHTML = !data.channels?.length ? '<li class="list-group-item text-muted">未设置AI频道。</li>' : data.channels.map(ch => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${ch.id}"><span>#${ch.name} (模型: ${ch.model})</span><button class="btn btn-danger btn-sm action-btn" data-action="settings/ai_dep" data-target-id="${ch.id}" data-sub-action="remove"><i class="fa-solid fa-trash"></i></button></li>`).join('');
+            list.innerHTML = !data.channels?.length ? '<li class="list-group-item text-muted">未设置AI频道。</li>' : data.channels.map(ch => `<li class="list-group-item d-flex justify-content-between align-items-center" data-entity-id="${ch.id}"><span>#${ch.name} (模型: ${ch.model})</span><button class="btn btn-danger btn-sm action-btn" data-action="action/ai_dep_channel_remove" data-target-id="${ch.id}"><i class="fa-solid fa-trash"></i></button></li>`).join('');
         }
     };
     setupCommonEventListeners(GUILD_ID, renderers);
